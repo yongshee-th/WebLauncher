@@ -3,10 +3,11 @@ package com.yongsheeth.weblauncher
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.webkit.WebResourceResponse
+import androidx.core.graphics.applyCanvas
+import androidx.core.graphics.createBitmap
 import androidx.webkit.WebViewAssetLoader
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -28,24 +29,27 @@ class AppIconPathHandler(private val context: Context) : WebViewAssetLoader.Path
             val inputStream = ByteArrayInputStream(outputStream.toByteArray())
             
             WebResourceResponse("image/png", "UTF-8", inputStream)
-        } catch (e: PackageManager.NameNotFoundException) {
+        } catch (@Suppress("unused") e: PackageManager.NameNotFoundException) {
             null
-        } catch (e: Exception) {
+        } catch (@Suppress("unused") e: Exception) {
             null
         }
     }
 
     private fun drawableToBitmap(drawable: Drawable): Bitmap {
-        if (drawable is BitmapDrawable) return drawable.bitmap
+        if (drawable is BitmapDrawable) {
+            return drawable.bitmap
+        }
         
-        val bitmap = Bitmap.createBitmap(
+        val bitmap = createBitmap(
             drawable.intrinsicWidth.coerceAtLeast(1),
             drawable.intrinsicHeight.coerceAtLeast(1),
-            Bitmap.Config.ARGB_8888
+            Bitmap.Config.ARGB_8888,
         )
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, canvas.width, canvas.height)
-        drawable.draw(canvas)
+        bitmap.applyCanvas {
+            drawable.setBounds(0, 0, width, height)
+            drawable.draw(this)
+        }
         return bitmap
     }
 }

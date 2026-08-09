@@ -8,7 +8,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 private val Context.dataStore by preferencesDataStore(name = "launcher_settings_v3")
@@ -21,7 +20,7 @@ enum class SourceType {
 data class ProjectItem(
     val name: String,
     val uri: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
 )
 
 class SettingsManager(private val context: Context) {

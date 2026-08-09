@@ -10,7 +10,7 @@ import java.net.URLConnection
 
 class DocumentTreePathHandler(
     private val context: Context,
-    private val rootTreeUri: Uri
+    private val rootTreeUri: Uri,
 ) : WebViewAssetLoader.PathHandler {
 
     override fun handle(path: String): WebResourceResponse? {
@@ -28,7 +28,7 @@ class DocumentTreePathHandler(
             val inputStream: InputStream = context.contentResolver.openInputStream(current.uri) ?: return null
             val mimeType = URLConnection.guessContentTypeFromName(current.name) ?: "text/html"
             WebResourceResponse(mimeType, "UTF-8", inputStream)
-        } catch (e: Exception) {
+        } catch (@Suppress("unused") e: Exception) {
             null
         }
     }

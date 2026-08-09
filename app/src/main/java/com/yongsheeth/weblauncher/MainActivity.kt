@@ -16,6 +16,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewAssetLoader.AssetsPathHandler
@@ -82,6 +84,14 @@ class MainActivity : ComponentActivity() {
         webView = WebView(this)
         setupWebView()
 
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                }
+            }
+        })
+
         setContent {
             val isFloatingButtonEnabled by settingsManager.isFloatingButtonEnabled.collectAsState(initial = false)
             
@@ -114,9 +124,9 @@ class MainActivity : ComponentActivity() {
                 settingsManager.sourceType,
                 settingsManager.selectedProjectUri,
                 settingsManager.githubUrl
-            ) { type, uri, github ->
-                Triple(type, uri, github)
-            }.collect { (type, uri, github) ->
+            ) { type, uri, _ ->
+                type to uri
+            }.collect { (type, uri) ->
                 // Per instructions, we validate but don't block yet
                 val isValid = ProjectValidator.validateProject(this@MainActivity, type, uri)
                 if (!isValid && type != SourceType.ASSETS) {
@@ -129,6 +139,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun registerListeners() {
         // Package changes
         val pkgFilter = IntentFilter().apply {
@@ -187,7 +198,7 @@ class MainActivity : ComponentActivity() {
             .addPathHandler("/app-icon/", AppIconPathHandler(this))
         
         if (type == SourceType.LOCAL && treeUriString != null) {
-            val treeUri = Uri.parse(treeUriString)
+            val treeUri = treeUriString.toUri()
             builder.addPathHandler("/local_project/", DocumentTreePathHandler(this, treeUri))
         } else if (type == SourceType.GITHUB) {
              builder.addPathHandler("/local_project/", WebViewAssetLoader.InternalStoragePathHandler(this, File(filesDir, "ui_source")))
@@ -229,17 +240,6 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val type = settingsManager.sourceType.first()
             loadSource(type)
-        }
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            // Usually launcher shouldn't exit on back press
-            // super.onBackPressed() 
-            // For now, let's keep it empty to behave like a launcher
         }
     }
 }

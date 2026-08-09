@@ -4,23 +4,19 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.hardware.camera2.CameraManager
 import android.os.BatteryManager
-import android.os.Build
 import android.os.Environment
 import android.os.StatFs
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.util.Base64
 import android.view.HapticFeedbackConstants
-import android.view.WindowManager
 import android.webkit.JavascriptInterface
+import androidx.core.graphics.applyCanvas
+import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -32,21 +28,22 @@ import java.io.ByteArrayOutputStream
 data class AppInfo(
     val name: String,
     val packageName: String,
-    val iconUrl: String // Changed from iconBase64
+    val iconUrl: String,
 )
 
 @Serializable
 data class BatteryStatus(
     val level: Int,
-    val isCharging: Boolean
+    val isCharging: Boolean,
 )
 
 @Serializable
 data class StorageMetrics(
     val totalBytes: Long,
-    val freeBytes: Long
+    val freeBytes: Long,
 )
 
+@Suppress("unused")
 class LauncherEngine(private val activity: Activity) {
 
     private val settingsManager = SettingsManager(activity)
@@ -121,8 +118,8 @@ class LauncherEngine(private val activity: Activity) {
     @JavascriptInterface
     fun launchApp(packageName: String) {
         val launchIntent = activity.packageManager.getLaunchIntentForPackage(packageName)
-        if (launchIntent != null) {
-            activity.startActivity(launchIntent)
+        launchIntent?.let {
+            activity.startActivity(it)
         }
     }
 
@@ -133,7 +130,7 @@ class LauncherEngine(private val activity: Activity) {
         
         val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-        val batteryPct = (level * 100 / scale.toFloat()).toInt()
+        val batteryPct = if (scale > 0) (level * 100 / scale.toFloat()).toInt() else -1
         
         val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
         val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
@@ -169,26 +166,5 @@ class LauncherEngine(private val activity: Activity) {
         activity.runOnUiThread {
             (activity as? MainActivity)?.reloadWebView()
         }
-    }
-
-    private fun encodeIconToBase64(drawable: Drawable): String {
-        val bitmap = if (drawable is BitmapDrawable) {
-            drawable.bitmap
-        } else {
-            val bmp = Bitmap.createBitmap(
-                drawable.intrinsicWidth.coerceAtLeast(1),
-                drawable.intrinsicHeight.coerceAtLeast(1),
-                Bitmap.Config.ARGB_8888
-            )
-            val canvas = Canvas(bmp)
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
-            drawable.draw(canvas)
-            bmp
-        }
-        
-        val byteArrayOutputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream)
-        val byteArray = byteArrayOutputStream.toByteArray()
-        return Base64.encodeToString(byteArray, Base64.NO_WRAP)
     }
 }

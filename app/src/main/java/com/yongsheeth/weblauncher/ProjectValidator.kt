@@ -2,6 +2,7 @@ package com.yongsheeth.weblauncher
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import java.io.File
 
@@ -23,7 +24,7 @@ object ProjectValidator {
 
     private fun validateSafFolder(context: Context, uriString: String?): Boolean {
         if (uriString == null) return false
-        val root = DocumentFile.fromTreeUri(context, Uri.parse(uriString)) ?: return false
+        val root = DocumentFile.fromTreeUri(context, uriString.toUri()) ?: return false
         val indexHtml = root.findFile("index.html") ?: return false
         
         val content = context.contentResolver.openInputStream(indexHtml.uri)?.use { 
