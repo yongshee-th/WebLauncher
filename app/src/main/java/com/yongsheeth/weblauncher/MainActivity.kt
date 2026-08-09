@@ -37,6 +37,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -51,7 +53,8 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             val packageName = intent.data?.schemeSpecificPart ?: return
             val event = if (intent.action == Intent.ACTION_PACKAGE_ADDED) "appInstalled" else "appUninstalled"
-            emitEvent(event, Json.encodeToString(mapOf("packageName" to packageName)))
+            val payload = buildJsonObject { put("packageName", packageName) }.toString()
+            emitEvent(event, payload)
         }
     }
 
@@ -59,19 +62,25 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
             val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-            val pct = (level * 100 / scale.toFloat()).toInt()
+            val pct = if (scale > 0) (level * 100 / scale.toFloat()).toInt() else -1
             val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
             val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
-            emitEvent("batteryStateChanged", Json.encodeToString(mapOf("level" to pct, "isCharging" to isCharging)))
+            val payload = buildJsonObject {
+                put("level", pct)
+                put("isCharging", isCharging)
+            }.toString()
+            emitEvent("batteryStateChanged", payload)
         }
     }
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
-            emitEvent("networkStateChanged", Json.encodeToString(mapOf("available" to true)))
+            val payload = buildJsonObject { put("available", true) }.toString()
+            emitEvent("networkStateChanged", payload)
         }
         override fun onLost(network: Network) {
-            emitEvent("networkStateChanged", Json.encodeToString(mapOf("available" to false)))
+            val payload = buildJsonObject { put("available", false) }.toString()
+            emitEvent("networkStateChanged", payload)
         }
     }
 
