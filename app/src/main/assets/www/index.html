@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Launcher</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="container">
+        <header>
+            <div id="status-bar">
+                <span id="battery">Battery: --%</span>
+                <span id="storage">Storage: -- GB free</span>
+            </div>
+            <h1>Web Launcher</h1>
+            <button id="settings-btn" onclick="LauncherEngine.openLauncherSettings()">Settings</button>
+        </header>
+
+        <main id="app-grid">
+            <!-- Apps will be injected here -->
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
