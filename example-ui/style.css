@@ -1,0 +1,131 @@
+:root {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --text-color: #f8fafc;
+    --accent-primary: #38bdf8;
+    --accent-secondary: #818cf8;
+    --danger: #ef4444;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+#app {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 16px;
+}
+
+h1 { font-size: 1.5rem; margin: 0; }
+h2 { font-size: 1.1rem; margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+
+.dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.card {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.card.wide {
+    grid-column: 1 / -1;
+}
+
+button {
+    background: var(--accent-secondary);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.2s;
+}
+
+button:active { opacity: 0.7; }
+.btn-primary { background: var(--accent-primary); }
+
+input[type="text"] {
+    width: 100%;
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: white;
+    padding: 8px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+}
+
+.control-group {
+    margin-bottom: 16px;
+}
+
+.btn-grid {
+    display: flex;
+    gap: 8px;
+}
+
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 16px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 12px;
+    background: #0f172a;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.app-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    font-size: 0.75rem;
+}
+
+.app-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+}
+
+.event-log {
+    height: 200px;
+    background: #000;
+    font-family: monospace;
+    padding: 12px;
+    border-radius: 8px;
+    overflow-y: auto;
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+
+.log-entry {
+    margin-bottom: 4px;
+    color: #10b981;
+}
+
+.log-entry.system { color: #6366f1; }
+.log-entry.timestamp { color: #64748b; font-size: 0.7rem; }

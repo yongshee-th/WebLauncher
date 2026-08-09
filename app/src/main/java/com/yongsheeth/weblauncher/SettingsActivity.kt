@@ -97,15 +97,33 @@ class SettingsActivity : ComponentActivity() {
                                     zis.copyTo(fos)
                                 }
                             }
+                            zis.closeEntry()
                             entry = zis.nextEntry
                         }
                     }
+
+                    // Flattening logic for GitHub ZIPs (handles the repo-branch/ wrapper folder)
+                    flattenDirectory(destDir)
                 }
                 settingsManager.updateSource(SourceType.GITHUB, url = url)
                 Toast.makeText(this@SettingsActivity, "Download Successful", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(this@SettingsActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    private fun flattenDirectory(baseDir: File) {
+        val files = baseDir.listFiles() ?: return
+        // If the directory contains exactly one item and it's a directory, move its contents up
+        if (files.size == 1 && files[0].isDirectory) {
+            val innerDir = files[0]
+            val innerFiles = innerDir.listFiles() ?: return
+            for (file in innerFiles) {
+                val target = File(baseDir, file.name)
+                file.renameTo(target)
+            }
+            innerDir.delete()
         }
     }
 

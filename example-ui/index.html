@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebLauncher SDK Demo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>🚀 WebLauncher SDK Demo</h1>
+            <div class="header-actions">
+                <button class="btn-primary" onclick="WL.openSettings()">Native Settings</button>
+                <button class="btn-secondary" onclick="WL.reload()">Reload Engine</button>
+            </div>
+        </header>
+
+        <div class="dashboard">
+            <!-- System Status Panel -->
+            <section class="card">
+                <h2>📊 System Status</h2>
+                <div id="system-info">
+                    <p>Battery: <span id="battery-val">Loading...</span></p>
+                    <p>Storage: <span id="storage-val">Loading...</span></p>
+                    <button onclick="updateSystemInfo()">Refresh Stats</button>
+                </div>
+            </section>
+
+            <!-- Hardware Controls Panel -->
+            <section class="card">
+                <h2>🛠️ Hardware Control</h2>
+                <div class="control-group">
+                    <label>Brightness</label>
+                    <input type="range" min="0" max="1" step="0.1" onchange="WL.setBrightness(this.value)">
+                </div>
+                <div class="control-group">
+                    <button onclick="WL.toggleTorch(true)">Torch ON</button>
+                    <button onclick="WL.toggleTorch(false)">Torch OFF</button>
+                </div>
+                <div class="control-group">
+                    <label>Haptics</label>
+                    <div class="btn-grid">
+                        <button onclick="WL.hapticFeedback('click')">Click</button>
+                        <button onclick="WL.hapticFeedback('heavy')">Heavy</button>
+                        <button onclick="WL.hapticFeedback('double_click')">Double</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- App List Panel -->
+            <section class="card wide">
+                <h2>📱 Installed Apps</h2>
+                <div id="app-grid" class="app-grid">
+                    <!-- Apps injected here -->
+                </div>
+                <button onclick="loadAppList()">Refresh App List</button>
+            </section>
+
+            <!-- Persistence Panel -->
+            <section class="card">
+                <h2>💾 Persistence (DataStore)</h2>
+                <input type="text" id="kv-key" placeholder="Key">
+                <input type="text" id="kv-value" placeholder="Value">
+                <div class="btn-grid">
+                    <button onclick="saveData()">Save</button>
+                    <button onclick="loadData()">Load</button>
+                </div>
+                <p id="kv-result"></p>
+            </section>
+
+            <!-- Event Monitor -->
+            <section class="card wide">
+                <h2>📡 Real-Time Event Monitor</h2>
+                <div id="event-log" class="event-log">
+                    <div class="log-entry system">Waiting for native events...</div>
+                </div>
+                <button onclick="clearLogs()">Clear Logs</button>
+            </section>
+        </div>
+    </div>
+
+    <script src="sdk.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
