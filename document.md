@@ -1,123 +1,78 @@
-# Web-based Engine Launcher Framework - Developer Documentation
+# WebLauncher Master Engine - Complete API Reference
 
-Welcome to the **Web-based Engine Launcher** framework. This documentation provides everything you need to build custom, high-performance Web UIs that integrate deeply with the Android operating system.
+The **Master Engine** provides deep integration with the Android system, allowing you to build a fully-featured Launcher UI. All APIs are exposed through `window.LauncherEngine` and simplified via the `WL` helper in `sdk.js`.
 
-## 1. Architecture Overview
+## 🛡️ Security & Privacy
+- **Inbound-Only Policy**: Sensitive local data (Notifications, GPS, Usage) is never sent to external servers by the engine.
+- **Local Processing**: All system metrics and app lists are returned directly to the Web UI for local rendering.
+- **Permissions**: Some APIs require special user authorization (Usage Stats, Notification Access). The Engine will guide the user to the correct settings page.
 
-The launcher consists of a **Native Kotlin Engine** and a **Web UI**. They communicate via:
-- **JavaScript Bridge**: JS calls native methods via `window.LauncherEngine`.
-- **Event System**: Native engine emits real-time events to JS via `window.LauncherEngine.emitEvent`.
-- **Secure Asset Loading**: All files (including local SAF folders) are served via `https://appassets.androidplatform.net/` using `WebViewAssetLoader`.
+---
 
-## 2. JavaScript API Reference (`LauncherEngine`)
+## 📱 1. App Management
+- `getAppsList()`: Returns `AppInfo[]` (Name, Pkg, IconURL, Category).
+- `launchApp(pkg)`: Opens the specified app.
+- `launchWithData(pkg, uri)`: Launches an app with a deep-link (e.g., `https://google.com`).
+- `uninstallApp(pkg)`: Triggers the system uninstallation dialog.
+- `openAppSettings(pkg)`: Opens the Android "App Info" page for that package.
+- `isAppInstalled(pkg)`: Returns `boolean`.
+- `getUsageStats(range)`: Returns screen time data for apps. Range: `day`, `week`, `month`.
+- `isDefaultLauncher()`: Check if WebLauncher is the active Home app.
+- `openDefaultLauncherSettings()`: Opens the "Default Apps" system page.
 
-### App Management
-- `getAppsList(): string`: Returns a JSON array of installed launcher apps.
-  - **Return Format**: `[ { "name": "Chrome", "packageName": "com.android.chrome", "iconUrl": "https://..." } ]`
-- `launchApp(packageName: string)`: Launches the specified application.
+## 🔔 2. Notification System
+- `getNotifications()`: Returns a list of all active status bar notifications.
+- `cancelNotification(key)`: Dismisses a specific notification.
+- `clearAllNotifications()`: Clears all dismissible notifications.
+- `openNotificationDrawer()`: Native swipe-down to show the shade.
+- `getUnreadNotificationCount(pkg)`: Returns the number of active notifications for an app.
 
-### Device Control
-- `setScreenBrightness(level: number)`: Sets the current window brightness (0.0 to 1.0).
-- `triggerHapticFeedback(effectType: "click" | "heavy" | "double_click")`: Triggers native haptics.
-- `toggleTorch(enabled: boolean)`: Toggles the device flashlight.
-- `getBatteryStatus(): string`: Returns `{ "level": number, "isCharging": boolean }`.
-- `getStorageMetrics(): string`: Returns `{ "totalBytes": number, "freeBytes": number }`.
+## 🌐 3. Network & Connectivity
+- `getWifiStatus()`: Returns SSID, Link Speed, and Connection state.
+- `setWifiEnabled(bool)`: Toggles WiFi (Triggers settings panel on Android 10+).
+- `getBluetoothStatus()`: Returns `boolean`.
+- `setBluetoothEnabled(bool)`: Toggles Bluetooth.
+- `getMobileDataStatus()`: Returns cellular network details.
+- `getAirPlaneModeStatus()`: Returns `boolean`.
 
-### Persistence
-- `setPersistentData(key: string, value: string)`: Stores data in Android DataStore.
-- `getPersistentData(key: string): string`: Retrieves stored data.
+## 🔋 4. Hardware & Sensors
+- `getBatteryStatus()`: Level, isCharging, Health, Temperature, and PluggedType (AC/USB).
+- `getStorageMetrics()`: Total, Free, and Used bytes + RAM status (Total/Available).
+- `getDeviceInfo()`: Model, Manufacturer, Android Version, and Screen Resolution.
+- `vibrate(duration)`: Triggers a haptic pulse.
+- `toggleTorch(enabled)`: Turns the camera flashlight On/Off.
 
-### System Actions
-- `openLauncherSettings()`: Opens the native Settings UI.
-- `reloadEngine()`: Reloads the current WebView.
+## 🔊 5. Media & Display
+- `getVolumeLevels()`: Current levels for `media`, `ring`, `alarm`, and `notification`.
+- `setVolumeLevel(type, level)`: Sets volume for a specific stream.
+- `setBrightness(level)`: Sets screen brightness (0.0 to 1.0).
+- `getDisplayOrientation()`: Returns `portrait` or `landscape`.
+- `isDarkModeEnabled()`: Returns `boolean`.
 
-## 3. Custom Protocols & Asset Loading
+## 🖼️ 6. System Personalization
+- `getSystemWallpaper()`: Returns the current system wallpaper as a **Base64** encoded JPEG.
+- `setSystemWallpaper(base64, target)`: Changes wallpaper. Target: `home`, `lock`, or `both`.
+- `setPersistentData(key, value)` / `getPersistentData(key)`: Save/Load settings for your Web UI.
 
-### App Icons
-Use the high-performance native handler to load icons. Do **not** use Base64 icons for large grids.
-```html
-<img src="https://appassets.androidplatform.net/app-icon/com.android.chrome" />
-```
+---
 
-### Local Project Structure
-When using the "Local Folder" source via SAF, ensure your project follows this structure:
-```text
-/SelectedFolder
-  ├── index.html (Mandatory)
-  ├── style.css
-  ├── main.js
-  └── assets/
-```
-In your HTML, use absolute-looking paths like `/local_project/assets/image.png` or relative paths like `./assets/image.png`.
+## 📡 7. Real-time Native Events
+Subscribe to these using `window.addEventListener('native:EVENT_NAME', ...)`:
 
-## 4. Native -> JS Event System
+| Event Name | Payload Description |
+| :--- | :--- |
+| `onAppListChanged` | Fired when an app is installed or removed. |
+| `onBatteryStatusChanged` | Real-time level and charging updates. |
+| `onNetworkStateChanged` | Fired when WiFi/Data connection toggles. |
+| `onNotificationReceived` | Payload contains the full notification object. |
+| `onVolumeChanged` | Fired when physical volume keys are pressed. |
+| `onScreenStateChanged` | Fired when the screen turns On or Off. |
+| `onHomeButtonPressed` | Fired when the user taps the Home button. |
 
-The engine emits events for real-time system changes. Your UI must implement a global handler.
+---
 
-### Subscribable Events:
-- `appInstalled`: `{ "packageName": string }`
-- `appUninstalled`: `{ "packageName": string }`
-- `batteryStateChanged`: `{ "level": number, "isCharging": boolean }`
-- `networkStateChanged`: `{ "available": boolean }`
-
-### Boilerplate JS Wrapper:
-```javascript
-// sdk.js
-window.LauncherEngine = window.LauncherEngine || {};
-window.LauncherEngine.emitEvent = (name, payload) => {
-    const event = new CustomEvent(`native:${name}`, { detail: payload });
-    window.dispatchEvent(event);
-};
-
-// Usage in your app
-window.addEventListener('native:batteryStateChanged', (e) => {
-    console.log('New battery level:', e.detail.level);
-});
-```
-
-## 5. Security & Safety Policies
-
-### Mandatory Entry Point
-Every custom UI **MUST** include a button or gesture that calls `LauncherEngine.openLauncherSettings()`. 
-> [!CAUTION]
-> The engine scans your `index.html` and linked scripts. If this call is missing, the app will display a warning and may block the project in future versions.
-
-### Hardware Fail-Safe
-If you get locked out of your UI, press **Volume Up + Volume Down simultaneously** to force-open settings.
-
-## 6. Debugging Your Web UI
-
-You can debug your Launcher UI just like a regular website:
-1. Enable **Developer Options** and **USB Debugging** on your Android device.
-2. Connect your device to your computer.
-3. Open Chrome and go to `chrome://inspect/#devices`.
-4. Find **WebLauncher** in the list and click **inspect**.
-
-## 7. TypeScript Definitions (`launcher-engine.d.ts`)
-
-```typescript
-interface AppInfo {
-    name: string;
-    packageName: string;
-    iconUrl: string;
-}
-
-interface LauncherEngine {
-    getAppsList(): string; // Returns JSON string of AppInfo[]
-    launchApp(packageName: string): void;
-    setScreenBrightness(level: number): void;
-    triggerHapticFeedback(effectType: "click" | "heavy" | "double_click"): void;
-    toggleTorch(enabled: boolean): void;
-    getBatteryStatus(): string; // Returns JSON string
-    getStorageMetrics(): string; // Returns JSON string
-    setPersistentData(key: string, value: string): void;
-    getPersistentData(key: string): string;
-    openLauncherSettings(): void;
-    reloadEngine(): void;
-    emitEvent?(name: string, payload: any): void; // Native use only
-}
-
-declare interface Window {
-    LauncherEngine: LauncherEngine;
-}
-```
+## 🛠️ 8. Developer & Debugging
+- `reloadEngine()`: Forces the WebView to reload the current project.
+- **Remote Debugging**: Connect via USB and use Chrome PC (`chrome://inspect`) to debug.
+- **Diagnostic Dashboard**: Access the native 🐞 icon in settings to view real-time Console logs and Network traffic.
+- **Fail-Safe**: Press **Volume Up + Volume Down** simultaneously to bypass the Web UI and enter native Settings.

@@ -19,6 +19,8 @@ class AppIconPathHandler(private val context: Context) : WebViewAssetLoader.Path
         val packageName = path.trim('/')
         if (packageName.isEmpty()) return null
 
+        android.util.Log.d("AppIconPathHandler", "Requesting icon for: $packageName")
+
         return try {
             val pm = context.packageManager
             val icon = pm.getApplicationIcon(packageName)
@@ -29,11 +31,21 @@ class AppIconPathHandler(private val context: Context) : WebViewAssetLoader.Path
             val inputStream = ByteArrayInputStream(outputStream.toByteArray())
             
             WebResourceResponse("image/png", "UTF-8", inputStream)
-        } catch (@Suppress("unused") e: PackageManager.NameNotFoundException) {
-            null
-        } catch (@Suppress("unused") e: Exception) {
-            null
+        } catch (e: PackageManager.NameNotFoundException) {
+            android.util.Log.e("AppIconPathHandler", "Package not found: $packageName")
+            // Return a transparent 1x1 pixel to avoid ERR_NAME_NOT_RESOLVED
+            createEmptyIconResponse()
+        } catch (e: Exception) {
+            android.util.Log.e("AppIconPathHandler", "Error loading icon: ${e.message}")
+            createEmptyIconResponse()
         }
+    }
+
+    private fun createEmptyIconResponse(): WebResourceResponse {
+        val bitmap = createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        return WebResourceResponse("image/png", "UTF-8", ByteArrayInputStream(outputStream.toByteArray()))
     }
 
     private fun drawableToBitmap(drawable: Drawable): Bitmap {

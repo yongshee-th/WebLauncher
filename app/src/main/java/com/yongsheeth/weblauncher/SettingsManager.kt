@@ -32,6 +32,7 @@ class SettingsManager(private val context: Context) {
         val RECENT_PROJECTS = stringPreferencesKey("recent_projects")
         val IS_FLOATING_BUTTON_ENABLED = booleanPreferencesKey("is_floating_button_enabled")
         val WEB_PERSISTENT_DATA = stringPreferencesKey("web_persistent_data")
+        val IS_REMOTE_DEBUGGING_ENABLED = booleanPreferencesKey("is_remote_debugging_enabled")
     }
 
     val sourceType: Flow<SourceType> = context.dataStore.data.map { preferences ->
@@ -59,6 +60,10 @@ class SettingsManager(private val context: Context) {
         preferences[IS_FLOATING_BUTTON_ENABLED] ?: false
     }
 
+    val isRemoteDebuggingEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[IS_REMOTE_DEBUGGING_ENABLED] ?: false
+    }
+
     suspend fun updateSource(sourceType: SourceType, uri: String? = null, url: String? = null) {
         context.dataStore.edit { preferences ->
             preferences[SOURCE_TYPE] = sourceType.name
@@ -71,6 +76,16 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { preferences ->
             preferences[IS_FLOATING_BUTTON_ENABLED] = enabled
         }
+    }
+
+    suspend fun toggleRemoteDebugging(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[IS_REMOTE_DEBUGGING_ENABLED] = enabled
+        }
+    }
+
+    suspend fun clearAll() {
+        context.dataStore.edit { it.clear() }
     }
 
     suspend fun setPersistentData(key: String, value: String) {

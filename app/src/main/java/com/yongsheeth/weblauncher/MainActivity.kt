@@ -5,20 +5,28 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioManager
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Bundle
+import android.provider.Settings
 import android.view.KeyEvent
+import android.view.ViewGroup
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -49,12 +57,19 @@ class MainActivity : ComponentActivity() {
     
     private val pressedKeys = mutableSetOf<Int>()
 
+    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        reloadWebView()
+    }
+
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val packageName = intent.data?.schemeSpecificPart ?: return
-            val event = if (intent.action == Intent.ACTION_PACKAGE_ADDED) "appInstalled" else "appUninstalled"
-            val payload = buildJsonObject { put("packageName", packageName) }.toString()
-            emitEvent(event, payload)
+            val action = if (intent.action == Intent.ACTION_PACKAGE_ADDED) "added" else "removed"
+            val payload = buildJsonObject { 
+                put("action", action)
+                put("packageName", packageName) 
+            }.toString()
+            emitEvent("onAppListChanged", payload)
         }
     }
 
@@ -69,18 +84,28 @@ class MainActivity : ComponentActivity() {
                 put("level", pct)
                 put("isCharging", isCharging)
             }.toString()
-            emitEvent("batteryStateChanged", payload)
+            emitEvent("onBatteryStatusChanged", payload)
+        }
+    }
+
+    private val systemReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_ON -> emitEvent("onScreenStateChanged", "{\"isScreenOn\": true}")
+                Intent.ACTION_SCREEN_OFF -> emitEvent("onScreenStateChanged", "{\"isScreenOn\": false}")
+            }
         }
     }
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) {
-            val payload = buildJsonObject { put("available", true) }.toString()
-            emitEvent("networkStateChanged", payload)
-        }
-        override fun onLost(network: Network) {
-            val payload = buildJsonObject { put("available", false) }.toString()
-            emitEvent("networkStateChanged", payload)
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+            val isOnline = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            val type = if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) "WIFI" else "MOBILE"
+            val payload = buildJsonObject { 
+                put("isOnline", isOnline)
+                put("connectionType", type)
+            }.toString()
+            emitEvent("onNetworkStateChanged", payload)
         }
     }
 
@@ -89,9 +114,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         settingsManager = SettingsManager(this)
+        NotificationRepository.setEventEmitter { name, payload -> emitEvent(name, payload) }
         
         webView = WebView(this)
         setupWebView()
+
+        registerListeners()
+        checkPermissions()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -103,10 +132,22 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val isFloatingButtonEnabled by settingsManager.isFloatingButtonEnabled.collectAsState(initial = false)
+            val isRemoteDebug by settingsManager.isRemoteDebuggingEnabled.collectAsState(initial = false)
             
+            LaunchedEffect(isRemoteDebug) {
+                WebView.setWebContentsDebuggingEnabled(isRemoteDebug)
+            }
+
             Box(modifier = Modifier.fillMaxSize()) {
                 AndroidView(
-                    factory = { webView },
+                    factory = { 
+                        webView.apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                        }
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
                 
@@ -143,12 +184,23 @@ class MainActivity : ComponentActivity() {
                 }
                 
                 updateAssetLoader(type, uri)
-                loadSource(type)
+                loadSource(type, uri)
             }
         }
     }
 
-    @SuppressLint("MissingPermission")
+    private fun checkPermissions() {
+        val permissions = mutableListOf(
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            permissions.add(android.Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        permissionLauncher.launch(permissions.toTypedArray())
+    }
+
+    @SuppressLint("MissingPermission", "InlinedApi")
     private fun registerListeners() {
         // Package changes
         val pkgFilter = IntentFilter().apply {
@@ -156,10 +208,17 @@ class MainActivity : ComponentActivity() {
             addAction(Intent.ACTION_PACKAGE_REMOVED)
             addDataScheme("package")
         }
-        registerReceiver(packageReceiver, pkgFilter)
+        registerReceiver(packageReceiver, pkgFilter, RECEIVER_EXPORTED)
 
         // Battery changes
-        registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), RECEIVER_EXPORTED)
+
+        // System state
+        val sysFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        registerReceiver(systemReceiver, sysFilter, RECEIVER_EXPORTED)
 
         // Network changes
         val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -170,6 +229,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         unregisterReceiver(packageReceiver)
         unregisterReceiver(batteryReceiver)
+        unregisterReceiver(systemReceiver)
         val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         connectivityManager.unregisterNetworkCallback(networkCallback)
     }
@@ -186,16 +246,48 @@ class MainActivity : ComponentActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+            databaseEnabled = true
             allowFileAccess = true
+            allowContentAccess = true
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            
+            // Set to false to avoid desktop-style scaling which breaks mobile % height
+            loadWithOverviewMode = false
+            useWideViewPort = false
+            
+            setSupportZoom(false)
+            displayZoomControls = false
+            
+            // Critical for consistent percentage layouts
+            textZoom = 100 
+            
+            // Caching & Performance
+            cacheMode = WebSettings.LOAD_DEFAULT
         }
+        
+        // Remove scrollbars for a cleaner look
+        webView.isVerticalScrollBarEnabled = false
+        webView.isHorizontalScrollBarEnabled = false
+        
+        // Use SOFTWARE layer temporarily to diagnose black screen issues
+        webView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
+        WebView.setWebContentsDebuggingEnabled(true)
         
         webView.addJavascriptInterface(LauncherEngine(this), "LauncherEngine")
         
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                DiagnosticRepository.addConsoleLog(consoleMessage)
+                return super.onConsoleMessage(consoleMessage)
+            }
+        }
+
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(
                 view: WebView,
                 request: WebResourceRequest
             ): WebResourceResponse? {
+                DiagnosticRepository.addNetworkRequest(request.url.toString())
                 return assetLoader?.shouldInterceptRequest(request.url)
             }
         }
@@ -216,8 +308,24 @@ class MainActivity : ComponentActivity() {
         assetLoader = builder.build()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) {
+            emitEvent("onHomeButtonPressed", "{}")
+        }
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         pressedKeys.add(keyCode)
+        
+        // Volume Events
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            emitEvent("onVolumeChanged", "{\"streamType\": \"MEDIA\", \"action\": \"up\"}")
+        }
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            emitEvent("onVolumeChanged", "{\"streamType\": \"MEDIA\", \"action\": \"down\"}")
+        }
+
         if (pressedKeys.contains(KeyEvent.KEYCODE_VOLUME_UP) && 
             pressedKeys.contains(KeyEvent.KEYCODE_VOLUME_DOWN)) {
             openLauncherSettings()
@@ -236,10 +344,22 @@ class MainActivity : ComponentActivity() {
         startActivity(intent)
     }
 
-    private fun loadSource(type: SourceType) {
+    private fun loadSource(type: SourceType, uri: String?) {
         val url = when (type) {
             SourceType.ASSETS -> "https://appassets.androidplatform.net/assets/www/index.html"
-            SourceType.LOCAL, SourceType.GITHUB -> "https://appassets.androidplatform.net/local_project/index.html"
+            SourceType.LOCAL, SourceType.GITHUB -> {
+                val isValid = if (type == SourceType.GITHUB) {
+                    File(filesDir, "ui_source/index.html").exists()
+                } else {
+                    !uri.isNullOrEmpty()
+                }
+                
+                if (!isValid) {
+                    android.util.Log.e("WebLauncher", "Source invalid or index.html missing for $type, falling back to assets")
+                    return loadSource(SourceType.ASSETS, null)
+                }
+                "https://appassets.androidplatform.net/local_project/index.html"
+            }
         }
         android.util.Log.d("WebLauncher", "Loading URL: $url")
         webView.loadUrl(url)
@@ -248,7 +368,8 @@ class MainActivity : ComponentActivity() {
     fun reloadWebView() {
         lifecycleScope.launch {
             val type = settingsManager.sourceType.first()
-            loadSource(type)
+            val uri = settingsManager.selectedProjectUri.first()
+            loadSource(type, uri)
         }
     }
 }

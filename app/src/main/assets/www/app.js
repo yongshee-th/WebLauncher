@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('WebLauncher UI Loaded');
+
     // Setup event listener bridge
     window.LauncherEngine = window.LauncherEngine || {};
     window.LauncherEngine.emitEvent = (name, payload) => {
