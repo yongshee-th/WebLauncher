@@ -23,10 +23,11 @@ class WebLauncherNotificationListener : NotificationListenerService() {
 
     override fun onCreate() {
         super.onCreate()
+        val filter = IntentFilter("com.yongsheeth.weblauncher.NOTIFICATION_CONTROL")
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(controlReceiver, IntentFilter("com.yongsheeth.weblauncher.NOTIFICATION_CONTROL"), RECEIVER_NOT_EXPORTED)
+            registerReceiver(controlReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
-            registerReceiver(controlReceiver, IntentFilter("com.yongsheeth.weblauncher.NOTIFICATION_CONTROL"))
+            registerReceiver(controlReceiver, filter)
         }
     }
 

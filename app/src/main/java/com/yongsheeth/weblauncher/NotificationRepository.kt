@@ -22,7 +22,7 @@ object NotificationRepository {
 
     private var eventEmitter: ((String, String) -> Unit)? = null
 
-    fun setEventEmitter(emitter: (String, String) -> Unit) {
+    fun setEventEmitter(emitter: ((String, String) -> Unit)?) {
         eventEmitter = emitter
     }
 

@@ -24,6 +24,7 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.*
@@ -46,7 +47,8 @@ data class AppInfo(
     val name: String,
     val packageName: String,
     val iconUrl: String,
-    val category: String = "Unknown"
+    val category: String = "Unknown",
+    val isSystemApp: Boolean = false
 )
 
 @Serializable
@@ -89,7 +91,8 @@ data class NetworkStatus(
     val type: String, // WIFI, MOBILE, NONE
     val ssid: String = "",
     val signalStrength: Int = 0,
-    val isConnected: Boolean = false
+    val isConnected: Boolean = false,
+    val operatorName: String = ""
 )
 
 @Serializable
@@ -104,9 +107,19 @@ data class VolumeLevels(
 data class PlaybackState(
     val title: String = "",
     val artist: String = "",
-    val albumArt: String = "", // Base64
+    val albumArt: String = "", // URL for art handler
     val isPlaying: Boolean = false,
-    val duration: Long = 0
+    val duration: Long = 0,
+    val position: Long = 0,
+    val packageName: String = ""
+)
+
+@Serializable
+data class QueueItem(
+    val id: Long,
+    val title: String,
+    val artist: String,
+    val duration: Long
 )
 
 @Suppress("unused")
@@ -125,10 +138,117 @@ class LauncherEngine(private val activity: Activity) {
             .map { resolveInfo ->
                 val name = resolveInfo.loadLabel(pm).toString()
                 val pkg = resolveInfo.activityInfo.packageName
-                AppInfo(name, pkg, "https://appassets.androidplatform.net/app-icon/$pkg")
+                val ai = resolveInfo.activityInfo.applicationInfo
+                
+                val isSystem = (ai.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                val category = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    when (ai.category) {
+                        android.content.pm.ApplicationInfo.CATEGORY_GAME -> "GAME"
+                        android.content.pm.ApplicationInfo.CATEGORY_AUDIO, android.content.pm.ApplicationInfo.CATEGORY_VIDEO -> "MEDIA"
+                        android.content.pm.ApplicationInfo.CATEGORY_SOCIAL, android.content.pm.ApplicationInfo.CATEGORY_NEWS -> "SOCIAL"
+                        android.content.pm.ApplicationInfo.CATEGORY_PRODUCTIVITY -> "SYSTEM"
+                        else -> "Unknown"
+                    }
+                } else "Unknown"
+
+                AppInfo(
+                    name = name, 
+                    packageName = pkg, 
+                    iconUrl = "https://appassets.androidplatform.net/app-icon/$pkg",
+                    category = category,
+                    isSystemApp = isSystem
+                )
             }
         
         return Json.encodeToString(apps)
+    }
+
+    @JavascriptInterface
+    fun getMobileDataStatus(): String {
+        val cm = activity.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val net = cm.activeNetwork
+        val caps = cm.getNetworkCapabilities(net)
+        val isMobile = caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+        return Json.encodeToString(NetworkStatus(
+            type = if (isMobile) "MOBILE" else "NONE",
+            isConnected = isMobile
+        ))
+    }
+
+    // --- Media Controls ---
+
+    private fun getActiveMediaController(): MediaController? {
+        return try {
+            val msm = activity.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+            val component = ComponentName(activity, WebLauncherNotificationListener::class.java)
+            msm.getActiveSessions(component).firstOrNull()
+        } catch (e: SecurityException) {
+            null
+        }
+    }
+
+    @JavascriptInterface
+    fun getPlaybackState(): String {
+        val controller = getActiveMediaController() ?: return "{}"
+        val metadata = controller.metadata
+        val pbState = controller.playbackState
+        
+        return Json.encodeToString(PlaybackState(
+            title = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: "Unknown",
+            artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: "Unknown",
+            albumArt = "https://appassets.androidplatform.net/album-art/${controller.packageName}",
+            isPlaying = pbState?.state == android.media.session.PlaybackState.STATE_PLAYING,
+            duration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0,
+            position = pbState?.position ?: 0,
+            packageName = controller.packageName
+        ))
+    }
+
+    @JavascriptInterface
+    fun mediaPlayPause() {
+        val controller = getActiveMediaController() ?: return
+        val pbState = controller.playbackState
+        if (pbState?.state == android.media.session.PlaybackState.STATE_PLAYING) {
+            controller.transportControls.pause()
+        } else {
+            controller.transportControls.play()
+        }
+    }
+
+    @JavascriptInterface
+    fun mediaNext() = getActiveMediaController()?.transportControls?.skipToNext()
+
+    @JavascriptInterface
+    fun mediaPrevious() = getActiveMediaController()?.transportControls?.skipToPrevious()
+
+    @JavascriptInterface
+    fun mediaSeekTo(pos: Long) = getActiveMediaController()?.transportControls?.seekTo(pos)
+
+    @JavascriptInterface
+    fun getMediaQueue(): String {
+        val controller = getActiveMediaController() ?: return "[]"
+        val queue = controller.queue?.map {
+            QueueItem(
+                id = it.queueId,
+                title = it.description.title?.toString() ?: "Unknown",
+                artist = it.description.subtitle?.toString() ?: "Unknown",
+                duration = 0 // Not directly available in QueueItem
+            )
+        } ?: emptyList()
+        return Json.encodeToString(queue)
+    }
+
+    @JavascriptInterface
+    fun playQueueItem(id: Long) {
+        getActiveMediaController()?.transportControls?.skipToQueueItem(id)
+    }
+
+    // --- System Control Overloads ---
+
+    @JavascriptInterface
+    fun setScreenBrightness(level: String) {
+        val fLevel = level.toFloatOrNull() ?: return
+        setScreenBrightness(fLevel)
     }
 
     @JavascriptInterface
@@ -233,6 +353,11 @@ class LauncherEngine(private val activity: Activity) {
         val intent = Intent("com.yongsheeth.weblauncher.NOTIFICATION_CONTROL")
         intent.putExtra("action", "clear_all")
         activity.sendBroadcast(intent)
+    }
+
+    @JavascriptInterface
+    fun getUnreadNotificationCount(packageName: String): Int {
+        return NotificationRepository.activeNotifications.value.values.count { it.packageName == packageName }
     }
 
     @JavascriptInterface

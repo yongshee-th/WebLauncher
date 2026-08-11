@@ -2,26 +2,109 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Launcher</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>WebLauncher Default UI</title>
+    <style>
+        :root {
+            --bg: #121212;
+            --text: #ffffff;
+            --accent: #bb86fc;
+            --surface: #1e1e1e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: sans-serif;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+        h1 { font-size: 1.2rem; }
+        #settings-btn {
+            background: var(--surface);
+            border: 1px solid #444;
+            color: var(--accent);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+        }
+        #app-grid {
+            flex: 1;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            padding: 20px;
+            align-content: start;
+        }
+        .app-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 8px;
+        }
+        .app-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+        }
+        .app-name {
+            font-size: 10px;
+            color: #ccc;
+            width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
 </head>
 <body>
-    <div id="container">
-        <header>
-            <div id="status-bar">
-                <span id="battery">Battery: --%</span>
-                <span id="storage">Storage: -- GB free</span>
-            </div>
-            <h1>Web Launcher</h1>
-            <button id="settings-btn" onclick="LauncherEngine.openLauncherSettings()">Settings</button>
-        </header>
+    <header>
+        <h1>Apps</h1>
+        <button id="settings-btn" onclick="WL.openSettings()">Settings</button>
+    </header>
 
-        <main id="app-grid">
-            <!-- Apps will be injected here -->
-        </main>
-    </div>
+    <main id="app-grid">
+        <!-- Apps injected here -->
+    </main>
 
-    <script src="app.js"></script>
+    <script src="sdk.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const grid = document.getElementById('app-grid');
+
+            function renderApps() {
+                const apps = WL.getAppsList();
+                grid.innerHTML = '';
+                apps.sort((a,b) => a.name.localeCompare(b.name)).forEach(app => {
+                    const div = document.createElement('div');
+                    div.className = 'app-item';
+                    div.onclick = () => {
+                        WL.vibrate(20);
+                        WL.launchApp(app.packageName);
+                    };
+                    div.innerHTML = `
+                        <img src="${app.iconUrl}" class="app-icon" loading="lazy">
+                        <div class="app-name">${app.name}</div>
+                    `;
+                    grid.appendChild(div);
+                });
+            }
+
+            renderApps();
+            window.addEventListener('native:onAppListChanged', renderApps);
+        });
+    </script>
 </body>
 </html>

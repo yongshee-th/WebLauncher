@@ -6,6 +6,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
+import android.content.ComponentName
+import android.media.MediaMetadata
+import android.media.session.MediaController
+import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -120,6 +125,7 @@ class MainActivity : ComponentActivity() {
         setupWebView()
 
         registerListeners()
+        updateMediaSessionObserver()
         checkPermissions()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -227,6 +233,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        NotificationRepository.setEventEmitter(null)
         unregisterReceiver(packageReceiver)
         unregisterReceiver(batteryReceiver)
         unregisterReceiver(systemReceiver)
@@ -234,10 +241,52 @@ class MainActivity : ComponentActivity() {
         connectivityManager.unregisterNetworkCallback(networkCallback)
     }
 
+    private val mediaCallback = object : MediaController.Callback() {
+        override fun onPlaybackStateChanged(state: PlaybackState?) {
+            emitMediaUpdate()
+        }
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            emitMediaUpdate()
+        }
+    }
+
+    private var activeMediaController: MediaController? = null
+
     private fun emitEvent(name: String, payload: String) {
         webView.post {
             val js = "if(window.LauncherEngine && window.LauncherEngine.emitEvent) { window.LauncherEngine.emitEvent('$name', $payload); }"
             webView.evaluateJavascript(js, null)
+        }
+    }
+
+    private fun emitMediaUpdate() {
+        lifecycleScope.launch {
+            val engine = LauncherEngine(this@MainActivity)
+            emitEvent("onPlaybackStateChanged", engine.getPlaybackState())
+        }
+    }
+
+    private fun updateMediaSessionObserver() {
+        try {
+            val msm = getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+            val component = ComponentName(this, WebLauncherNotificationListener::class.java)
+            
+            val sessionsListener = object : MediaSessionManager.OnActiveSessionsChangedListener {
+                override fun onActiveSessionsChanged(controllers: MutableList<MediaController>?) {
+                    activeMediaController?.unregisterCallback(mediaCallback)
+                    activeMediaController = controllers?.firstOrNull()
+                    activeMediaController?.registerCallback(mediaCallback)
+                    emitMediaUpdate()
+                }
+            }
+            
+            msm.addOnActiveSessionsChangedListener(sessionsListener, component)
+            
+            // Initial bind
+            activeMediaController = msm.getActiveSessions(component).firstOrNull()
+            activeMediaController?.registerCallback(mediaCallback)
+        } catch (e: SecurityException) {
+            android.util.Log.w("WebLauncher", "Media Access not granted")
         }
     }
 
@@ -269,8 +318,8 @@ class MainActivity : ComponentActivity() {
         webView.isVerticalScrollBarEnabled = false
         webView.isHorizontalScrollBarEnabled = false
         
-        // Use SOFTWARE layer temporarily to diagnose black screen issues
-        webView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
+        // Use HARDWARE layer for smooth cyberpunk animations and glow effects
+        webView.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
         WebView.setWebContentsDebuggingEnabled(true)
         
         webView.addJavascriptInterface(LauncherEngine(this), "LauncherEngine")
@@ -297,6 +346,7 @@ class MainActivity : ComponentActivity() {
         val builder = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", AssetsPathHandler(this))
             .addPathHandler("/app-icon/", AppIconPathHandler(this))
+            .addPathHandler("/album-art/", AlbumArtPathHandler(this))
         
         if (type == SourceType.LOCAL && treeUriString != null) {
             val treeUri = treeUriString.toUri()
