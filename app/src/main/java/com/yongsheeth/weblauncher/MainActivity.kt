@@ -172,8 +172,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        
-        registerListeners()
 
         lifecycleScope.launch {
             combine(

@@ -4,16 +4,17 @@ A high-performance Android Launcher framework that allows developers to build th
 
 ## 🚀 Key Features
 
-- **Web-to-Native Bridge**: A robust JavaScript interface (`LauncherEngine`) providing access to apps, battery status, storage metrics, and hardware controls.
+- **Web-to-Native Bridge**: A robust JavaScript interface (`LauncherEngine`) exposing 46 methods — apps, notifications, media playback, battery, storage, network and hardware controls.
 - **Flexible UI Sourcing**:
     - **Bundled Assets**: Package your UI directly within the APK.
     - **Local Projects**: Load and iterate on your UI from any folder on your device using Android's **Storage Access Framework (SAF)**.
     - **Remote Updates**: Download and auto-extract ZIP-based Web UIs from GitHub or any remote URL.
 - **Deep OS Integration**:
-    - **Real-time Events**: Native listeners for app installs/uninstalls, battery changes, and network status emitted directly to JS.
+    - **Real-time Events**: Eight native events pushed straight to JS — app installs/uninstalls, battery, network, notifications, playback, volume keys, screen on/off and the Home button.
+    - **Media Control**: Read and drive whatever app is currently playing — metadata, transport, seek, queue and album art — via the active `MediaSession`.
     - **Hardware Control**: Control screen brightness, trigger haptic feedback, and toggle the flashlight from the Web UI.
 - **Performance Optimized**:
-    - **Custom Asset Protocol**: High-performance app icon loading via `https://appassets.androidplatform.net/app-icon/` protocol.
+    - **Custom Asset Protocol**: High-performance app icon and album art loading via `https://appassets.androidplatform.net/app-icon/` and `/album-art/`, so images never cross the bridge as base64.
     - **Persistent Storage**: Native Key-Value store for Web UI settings that survive cache clears.
 - **Safety First**:
     - **Hardware Fail-Safe**: Press **Volume Up + Volume Down** simultaneously to immediately return to native settings.
